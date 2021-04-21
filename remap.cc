@@ -87,19 +87,6 @@ void top_level_task(const Task *, const std::vector<PhysicalRegion> &,
   IndexSpaceT<1> color_is_large =
       runtime->create_index_space(ctx, color_bounds_large);
 
-  FieldSpace fs_color_large = runtime->create_field_space(ctx);
-  {
-    FieldAllocator allocator =
-        runtime->create_field_allocator(ctx, fs_color_large);
-    allocator.allocate_field(sizeof(Rect<2>), PART_FID1);
-    allocator.allocate_field(sizeof(Rect<2>), PART_FID2);
-    allocator.allocate_field(sizeof(Rect<2>), PART_FID3);
-    allocator.allocate_field(sizeof(Rect<2>), PART_FID4);
-  }
-
-  LogicalRegion color_large_lr =
-      runtime->create_logical_region(ctx, is_color_large, fs_color_large);
-
   size_t max_size_large = size_t(-1) / (num_colors_large * sizeof(int));
 
   Rect<2> rect_blis_large(
@@ -113,6 +100,10 @@ void top_level_task(const Task *, const std::vector<PhysicalRegion> &,
     FieldAllocator allocator =
         runtime->create_field_allocator(ctx, fs_blis_large);
     allocator.allocate_field(sizeof(size_t), FID);
+    allocator.allocate_field(sizeof(Rect<2>), PART_FID1);
+    allocator.allocate_field(sizeof(Rect<2>), PART_FID2);
+    allocator.allocate_field(sizeof(Rect<2>), PART_FID3);
+    allocator.allocate_field(sizeof(Rect<2>), PART_FID4);
   }
 
   LogicalRegion large_lr =
@@ -141,78 +132,82 @@ void top_level_task(const Task *, const std::vector<PhysicalRegion> &,
   //------------------------------------------------------------------------
 
   IndexPartition overlap_ip;
- 
-  {
-  
-     //Launch the task that fills PART_FID
-     IndexLauncher fill_part_launcher(FILL_PART_TASK_ID, color_is_large,
-                                    TaskArgument(NULL, 0), idx_arg_map);
-     fill_part_launcher.add_region_requirement(
-      RegionRequirement(color_large_lp, 0, WRITE_DISCARD, EXCLUSIVE, color_large_lr));
-     fill_part_launcher.region_requirements[0].add_field(PART_FID1);
-     fill_part_launcher.region_requirements[0].add_field(PART_FID2);
-     fill_part_launcher.region_requirements[0].add_field(PART_FID3);
-     fill_part_launcher.region_requirements[0].add_field(PART_FID4);
-     runtime->execute_index_space(ctx, fill_part_launcher);
-     //IndexPartition p1 = 
 
+  {
+    Rect<2> extend2(Legion::Point<2>(0, 0), Legion::Point<2>(0, 0));
+
+    IndexPartition color_ip = runtime->create_partition_by_restriction(
+        ctx, is_blis_large, color_is_large, ret, extend2,
+        DISJOINT_COMPLETE_KIND);
+
+    LogicalPartition color_lp =
+        runtime->get_logical_partition(large_lr, color_ip);
+
+    // Launch the task that fills PART_FID
+    IndexLauncher fill_part_launcher(FILL_PART_TASK_ID, color_is_large,
+                                     TaskArgument(NULL, 0), idx_arg_map);
+    fill_part_launcher.add_region_requirement(
+        RegionRequirement(color_lp, 0, WRITE_DISCARD, EXCLUSIVE, large_lr));
+    fill_part_launcher.region_requirements[0].add_field(PART_FID1);
+    fill_part_launcher.region_requirements[0].add_field(PART_FID2);
+    fill_part_launcher.region_requirements[0].add_field(PART_FID3);
+    fill_part_launcher.region_requirements[0].add_field(PART_FID4);
+    runtime->execute_index_space(ctx, fill_part_launcher);
+    // IndexPartition p1 =
   }
 
   //------------------------------------------------------------------------
   // launch remap task
   //------------------------------------------------------------------------
   IndexLauncher remap_launcher(REMAP_TASK_ID, color_is_large,
-                                    TaskArgument(NULL, 0), idx_arg_map);
-  remp_launcher.add_region_requirement(
+                               TaskArgument(NULL, 0), idx_arg_map);
+  remap_launcher.add_region_requirement(
       RegionRequirement(large_lp, 0, READ_WRITE, EXCLUSIVE, large_lr));
   remap_launcher.region_requirements[0].add_field(FID);
   runtime->execute_index_space(ctx, remap_launcher);
-
-
 }
 
-void init_small_task(const Task *task, const std::vector<PhysicalRegion> &regions,
-                Context ctx, Runtime *runtime) {
+void init_small_task(const Task *task,
+                     const std::vector<PhysicalRegion> &regions, Context ctx,
+                     Runtime *runtime) {
 
   assert(regions.size() == 1);
   assert(task->regions.size() == 1);
   assert(task->regions[0].privilege_fields.size() == 1);
 
   auto color = task->index_point.point_data[0];
-  const FieldAccessor<WRITE_DISCARD,size_t, 2> acc(regions[0], FID);
+  const FieldAccessor<WRITE_DISCARD, size_t, 2> acc(regions[0], FID);
   auto rect = runtime->get_index_space_domain(
       ctx, task->regions[0].region.get_index_space());
-  for (PointInRectIterator<2> pir(rect); pir(); pir++){
-    acc[*pir]= 4*color;
+  for (PointInRectIterator<2> pir(rect); pir(); pir++) {
+    acc[*pir] = 4 * color;
   }
-}//init_small
+} // init_small
 
-void init_large_task(const Task *task, const std::vector<PhysicalRegion> &regions,
-                Context ctx, Runtime *runtime) {
+void init_large_task(const Task *task,
+                     const std::vector<PhysicalRegion> &regions, Context ctx,
+                     Runtime *runtime) {
 
   assert(regions.size() == 1);
   assert(task->regions.size() == 1);
   assert(task->regions[0].privilege_fields.size() == 1);
 
   auto color = task->index_point.point_data[0];
-  const FieldAccessor<WRITE_DISCARD,size_t, 2> acc(regions[0], FID);
+  const FieldAccessor<WRITE_DISCARD, size_t, 2> acc(regions[0], FID);
   auto rect = runtime->get_index_space_domain(
       ctx, task->regions[0].region.get_index_space());
-  for (PointInRectIterator<2> pir(rect); pir(); pir++){
-    acc[*pir]= 9*color;
+  for (PointInRectIterator<2> pir(rect); pir(); pir++) {
+    acc[*pir] = 9 * color;
   }
 
-}//init large
+} // init large
 
-void fill_part_task(const Task *task, const std::vector<PhysicalRegion> &regions,
-                Context ctx, Runtime *runtime) {
+void fill_part_task(const Task *task,
+                    const std::vector<PhysicalRegion> &regions, Context ctx,
+                    Runtime *runtime) {} // fill_part_task
 
-}//fill_part_task
-
-void remap_task (const Task *task, const std::vector<PhysicalRegion> &regions,
-                Context ctx, Runtime *runtime) {
-
-}//remap task
+void remap_task(const Task *task, const std::vector<PhysicalRegion> &regions,
+                Context ctx, Runtime *runtime) {} // remap task
 
 int main(int argc, char **argv) {
 
@@ -237,7 +232,8 @@ int main(int argc, char **argv) {
   {
     TaskVariantRegistrar registrar(FILL_PART_TASK_ID, "fill partition");
     registrar.add_constraint(ProcessorConstraint(Processor::LOC_PROC));
-    Runtime::preregister_task_variant<fill_part_task>(registrar, "fill_partition");
+    Runtime::preregister_task_variant<fill_part_task>(registrar,
+                                                      "fill_partition");
   }
   {
     TaskVariantRegistrar registrar(REMAP_TASK_ID, "remap");
