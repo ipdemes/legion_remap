@@ -153,7 +153,64 @@ void top_level_task(const Task *, const std::vector<PhysicalRegion> &,
     fill_part_launcher.region_requirements[0].add_field(PART_FID3);
     fill_part_launcher.region_requirements[0].add_field(PART_FID4);
     runtime->execute_index_space(ctx, fill_part_launcher);
-    // IndexPartition p1 =
+    IndexPartition ip1 = runtime->create_partition_by_image_range(
+        ctx,
+        is_blis_small,
+        color_lp,
+        runtime->get_parent_logical_region(color_lp),
+        PART_FID1,
+        color_is_large,
+        DISJOINT_INCOMPLETE_KIND 
+     );
+
+    IndexPartition ip2 = runtime->create_partition_by_image_range(
+        ctx,
+        is_blis_small,
+        color_lp,
+        runtime->get_parent_logical_region(color_lp),
+        PART_FID1,
+        color_is_large,
+        DISJOINT_INCOMPLETE_KIND
+     );
+
+     IndexPartition ip3 = runtime->create_partition_by_image_range(
+        ctx,
+        is_blis_small,
+        color_lp,
+        runtime->get_parent_logical_region(color_lp),
+        PART_FID1,
+        color_is_large,
+        DISJOINT_INCOMPLETE_KIND
+     );
+
+    IndexPartition ip4 = runtime->create_partition_by_image_range(
+        ctx,
+        is_blis_small,
+        color_lp,
+        runtime->get_parent_logical_region(color_lp),
+        PART_FID1,
+        color_is_large,
+        DISJOINT_INCOMPLETE_KIND
+     );
+
+    IndexPartition iu1 = runtime->create_partition_by_union(
+        ctx,
+        is_blis_small,
+        ip1, ip2,
+        color_is_large);
+
+    IndexPartition iu2 = runtime->create_partition_by_union(
+        ctx,
+        is_blis_small,
+        ip3, ip4,
+        color_is_large);
+
+    overlap_ip =  runtime->create_partition_by_union(
+        ctx,
+        is_blis_small,
+        iu1, iu2,
+        color_is_large);
+
   }
 
   //------------------------------------------------------------------------
@@ -182,6 +239,8 @@ void init_small_task(const Task *task,
   for (PointInRectIterator<2> pir(rect); pir(); pir++) {
     acc[*pir] = 4 * color;
   }
+
+   std::cout<<"IRNA DEBUG rect = "<<rect<<std::endl;
 } // init_small
 
 void init_large_task(const Task *task,
@@ -204,7 +263,78 @@ void init_large_task(const Task *task,
 
 void fill_part_task(const Task *task,
                     const std::vector<PhysicalRegion> &regions, Context ctx,
-                    Runtime *runtime) {} // fill_part_task
+                    Runtime *runtime) {
+
+    std::cout <<"Inside of the Fill_part_task"<<std::endl;
+    auto color = task->index_point.point_data[0];
+
+   const FieldAccessor<WRITE_DISCARD, Rect<2>, 2> acc1(regions[0], PART_FID1);
+   const FieldAccessor<WRITE_DISCARD, Rect<2>, 2> acc2(regions[0], PART_FID2);
+   const FieldAccessor<WRITE_DISCARD, Rect<2>, 2> acc3(regions[0], PART_FID3);
+   const FieldAccessor<WRITE_DISCARD, Rect<2>, 2> acc4(regions[0], PART_FID4);
+
+   auto rect = runtime->get_index_space_domain(
+      ctx, task->regions[0].region.get_index_space());
+
+    PointInRectIterator<2> pir(rect);
+
+    switch(color) {
+      case 0:
+      {
+        acc1[*pir]={{0,0},{0,65}};
+        break;
+      }
+      case 1:
+      {
+        acc1[*pir]={{0,0},{0,65}};
+        acc2[*pir]={{1,0},{1,65}};
+        break;
+      }
+      case 2:
+      {
+        acc2[*pir]={{1,0},{1,65}};
+        break;
+      }
+      case 3:
+      {
+        acc1[*pir]={{0,0},{0,65}};
+        acc3[*pir]={{2,0},{2,65}};
+         break;
+      }
+      case 4:
+      {
+        acc1[*pir]={{0,0},{0,65}};
+        acc2[*pir]={{1,0},{1,65}};
+        acc3[*pir]={{2,0},{2,65}};
+        acc4[*pir]={{3,0},{3,65}};
+        break;
+      }
+      case 5:
+      {
+         acc2[*pir]={{1,0},{1,65}};
+        acc4[*pir]={{3,0},{3,65}};
+        break;
+      }
+      case 6:
+      {
+        acc3[*pir]={{2,0},{2,65}};
+        break;
+      }
+      case 7:
+      {
+        acc3[*pir]={{2,0},{2,65}};
+        acc4[*pir]={{3,0},{3,65}};
+        break;
+      }
+      case 8:
+      {
+       acc4[*pir]={{3,0},{3,65}};
+        break;
+      }
+
+    }
+
+} // fill_part_task
 
 void remap_task(const Task *task, const std::vector<PhysicalRegion> &regions,
                 Context ctx, Runtime *runtime) {} // remap task
