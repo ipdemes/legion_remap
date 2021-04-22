@@ -154,64 +154,37 @@ void top_level_task(const Task *, const std::vector<PhysicalRegion> &,
     fill_part_launcher.region_requirements[0].add_field(PART_FID4);
     runtime->execute_index_space(ctx, fill_part_launcher);
     IndexPartition ip1 = runtime->create_partition_by_image_range(
-        ctx,
-        is_blis_small,
-        color_lp,
-        runtime->get_parent_logical_region(color_lp),
-        PART_FID1,
-        color_is_large,
-        DISJOINT_INCOMPLETE_KIND 
-     );
+        ctx, is_blis_small, color_lp,
+        runtime->get_parent_logical_region(color_lp), PART_FID1, color_is_large,
+        ALIASED_INCOMPLETE_KIND);
 
     IndexPartition ip2 = runtime->create_partition_by_image_range(
-        ctx,
-        is_blis_small,
-        color_lp,
-        runtime->get_parent_logical_region(color_lp),
-        PART_FID1,
-        color_is_large,
-        DISJOINT_INCOMPLETE_KIND
-     );
+        ctx, is_blis_small, color_lp,
+        runtime->get_parent_logical_region(color_lp), PART_FID2, color_is_large,
+        ALIASED_INCOMPLETE_KIND);
 
-     IndexPartition ip3 = runtime->create_partition_by_image_range(
-        ctx,
-        is_blis_small,
-        color_lp,
-        runtime->get_parent_logical_region(color_lp),
-        PART_FID1,
-        color_is_large,
-        DISJOINT_INCOMPLETE_KIND
-     );
+    IndexPartition ip3 = runtime->create_partition_by_image_range(
+        ctx, is_blis_small, color_lp,
+        runtime->get_parent_logical_region(color_lp), PART_FID3, color_is_large,
+        ALIASED_INCOMPLETE_KIND);
 
     IndexPartition ip4 = runtime->create_partition_by_image_range(
-        ctx,
-        is_blis_small,
-        color_lp,
-        runtime->get_parent_logical_region(color_lp),
-        PART_FID1,
-        color_is_large,
-        DISJOINT_INCOMPLETE_KIND
-     );
+        ctx, is_blis_small, color_lp,
+        runtime->get_parent_logical_region(color_lp), PART_FID4, color_is_large,
+        ALIASED_INCOMPLETE_KIND);
 
     IndexPartition iu1 = runtime->create_partition_by_union(
-        ctx,
-        is_blis_small,
-        ip1, ip2,
-        color_is_large);
+        ctx, is_blis_small, ip1, ip2, color_is_large, ALIASED_KIND);
 
     IndexPartition iu2 = runtime->create_partition_by_union(
-        ctx,
-        is_blis_small,
-        ip3, ip4,
-        color_is_large);
+        ctx, is_blis_small, ip3, ip4, color_is_large, ALIASED_KIND);
 
-    overlap_ip =  runtime->create_partition_by_union(
-        ctx,
-        is_blis_small,
-        iu1, iu2,
-        color_is_large);
-
+    overlap_ip = runtime->create_partition_by_union(
+        ctx, is_blis_small, iu1, iu2, color_is_large, ALIASED_COMPLETE_KIND);
   }
+
+  LogicalPartition overlap_lp =
+      runtime->get_logical_partition(small_lr, overlap_ip);
 
   //------------------------------------------------------------------------
   // launch remap task
@@ -221,9 +194,15 @@ void top_level_task(const Task *, const std::vector<PhysicalRegion> &,
   remap_launcher.add_region_requirement(
       RegionRequirement(large_lp, 0, READ_WRITE, EXCLUSIVE, large_lr));
   remap_launcher.region_requirements[0].add_field(FID);
-  runtime->execute_index_space(ctx, remap_launcher);
-}
 
+  remap_launcher.add_region_requirement(
+      RegionRequirement(overlap_lp, 0, READ_ONLY, EXCLUSIVE, small_lr));
+  remap_launcher.region_requirements[1].add_field(FID);
+
+  runtime->execute_index_space(ctx, remap_launcher);
+}//top level task
+
+//------------------------------------------------------------------------
 void init_small_task(const Task *task,
                      const std::vector<PhysicalRegion> &regions, Context ctx,
                      Runtime *runtime) {
@@ -240,9 +219,10 @@ void init_small_task(const Task *task,
     acc[*pir] = 4 * color;
   }
 
-   std::cout<<"IRNA DEBUG rect = "<<rect<<std::endl;
+  std::cout << "IRNA DEBUG rect = " << rect << std::endl;
 } // init_small
 
+//------------------------------------------------------------------------
 void init_large_task(const Task *task,
                      const std::vector<PhysicalRegion> &regions, Context ctx,
                      Runtime *runtime) {
@@ -261,84 +241,114 @@ void init_large_task(const Task *task,
 
 } // init large
 
+//------------------------------------------------------------------------
 void fill_part_task(const Task *task,
                     const std::vector<PhysicalRegion> &regions, Context ctx,
                     Runtime *runtime) {
+  assert(regions.size() == 1);
+  assert(task->regions.size() == 1);
+  assert(task->regions[0].privilege_fields.size() == 4);
 
-    std::cout <<"Inside of the Fill_part_task"<<std::endl;
-    auto color = task->index_point.point_data[0];
+  std::cout << "Inside of the Fill_part_task" << std::endl;
+  auto color = task->index_point.point_data[0];
 
-   const FieldAccessor<WRITE_DISCARD, Rect<2>, 2> acc1(regions[0], PART_FID1);
-   const FieldAccessor<WRITE_DISCARD, Rect<2>, 2> acc2(regions[0], PART_FID2);
-   const FieldAccessor<WRITE_DISCARD, Rect<2>, 2> acc3(regions[0], PART_FID3);
-   const FieldAccessor<WRITE_DISCARD, Rect<2>, 2> acc4(regions[0], PART_FID4);
+  const FieldAccessor<WRITE_DISCARD, Rect<2>, 2> acc1(regions[0], PART_FID1);
+  const FieldAccessor<WRITE_DISCARD, Rect<2>, 2> acc2(regions[0], PART_FID2);
+  const FieldAccessor<WRITE_DISCARD, Rect<2>, 2> acc3(regions[0], PART_FID3);
+  const FieldAccessor<WRITE_DISCARD, Rect<2>, 2> acc4(regions[0], PART_FID4);
 
-   auto rect = runtime->get_index_space_domain(
+  auto rect = runtime->get_index_space_domain(
       ctx, task->regions[0].region.get_index_space());
 
-    PointInRectIterator<2> pir(rect);
+  PointInRectIterator<2> pir(rect);
 
-    switch(color) {
-      case 0:
-      {
-        acc1[*pir]={{0,0},{0,65}};
-        break;
-      }
-      case 1:
-      {
-        acc1[*pir]={{0,0},{0,65}};
-        acc2[*pir]={{1,0},{1,65}};
-        break;
-      }
-      case 2:
-      {
-        acc2[*pir]={{1,0},{1,65}};
-        break;
-      }
-      case 3:
-      {
-        acc1[*pir]={{0,0},{0,65}};
-        acc3[*pir]={{2,0},{2,65}};
-         break;
-      }
-      case 4:
-      {
-        acc1[*pir]={{0,0},{0,65}};
-        acc2[*pir]={{1,0},{1,65}};
-        acc3[*pir]={{2,0},{2,65}};
-        acc4[*pir]={{3,0},{3,65}};
-        break;
-      }
-      case 5:
-      {
-         acc2[*pir]={{1,0},{1,65}};
-        acc4[*pir]={{3,0},{3,65}};
-        break;
-      }
-      case 6:
-      {
-        acc3[*pir]={{2,0},{2,65}};
-        break;
-      }
-      case 7:
-      {
-        acc3[*pir]={{2,0},{2,65}};
-        acc4[*pir]={{3,0},{3,65}};
-        break;
-      }
-      case 8:
-      {
-       acc4[*pir]={{3,0},{3,65}};
-        break;
-      }
-
-    }
+  switch (color) {
+  case 0: {
+    acc1[*pir] = {{0, 0}, {0, 65}};
+    break;
+  }
+  case 1: {
+    acc1[*pir] = {{0, 0}, {0, 65}};
+    acc2[*pir] = {{1, 0}, {1, 65}};
+    break;
+  }
+  case 2: {
+    acc2[*pir] = {{1, 0}, {1, 65}};
+    break;
+  }
+  case 3: {
+    acc1[*pir] = {{0, 0}, {0, 65}};
+    acc3[*pir] = {{2, 0}, {2, 65}};
+    break;
+  }
+  case 4: {
+    acc1[*pir] = {{0, 0}, {0, 65}};
+    acc2[*pir] = {{1, 0}, {1, 65}};
+    acc3[*pir] = {{2, 0}, {2, 65}};
+    acc4[*pir] = {{3, 0}, {3, 65}};
+    break;
+  }
+  case 5: {
+    acc2[*pir] = {{1, 0}, {1, 65}};
+    acc4[*pir] = {{3, 0}, {3, 65}};
+    break;
+  }
+  case 6: {
+    acc3[*pir] = {{2, 0}, {2, 65}};
+    break;
+  }
+  case 7: {
+    acc3[*pir] = {{2, 0}, {2, 65}};
+    acc4[*pir] = {{3, 0}, {3, 65}};
+    break;
+  }
+  case 8: {
+    acc4[*pir] = {{3, 0}, {3, 65}};
+    break;
+  }
+  }
 
 } // fill_part_task
 
+//------------------------------------------------------------------------
 void remap_task(const Task *task, const std::vector<PhysicalRegion> &regions,
-                Context ctx, Runtime *runtime) {} // remap task
+                Context ctx, Runtime *runtime) {
 
+  assert(regions.size() == 2);
+  assert(task->regions.size() == 2);
+  assert(task->regions[0].privilege_fields.size() == 1);
+  assert(task->regions[1].privilege_fields.size() == 1);
+
+  const FieldAccessor<READ_WRITE, size_t, 2> acc_l(regions[0], FID);
+
+  auto rect_l = runtime->get_index_space_domain(
+      ctx, task->regions[0].region.get_index_space());
+
+  const FieldAccessor<READ_ONLY, size_t, 2> acc_s(regions[1], FID);
+
+  auto rect_s = runtime->get_index_space_domain(
+      ctx, task->regions[1].region.get_index_space());
+
+#if 0
+  std::cout << "IRINA DEBUG rect overlap" << rect_s << std::endl;
+  for (PointInRectIterator<2> pir2(rect_s); pir2(); pir2++) {
+      std::cout << acc_s[*pir2] << std::endl;
+    }
+
+#endif
+
+#if 1 
+  for (PieceIterator pir(regions[1], FID, true); pir(); pir++) {
+    std::cout << "IRINA DEBUG overlap rect" << *pir << std::endl;
+    for (PointInRectIterator<2> pir2(*pir); pir2(); pir2++) {
+      std::cout << acc_s[*pir2] << std::endl;
+    }
+  }
+#endif
+
+} // remap task
+
+//------------------------------------------------------------------------
 int main(int argc, char **argv) {
 
   Runtime::set_top_level_task_id(TOP_LEVEL_TASK_ID);

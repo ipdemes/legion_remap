@@ -410,6 +410,9 @@ public:
     using namespace Legion;
     using namespace Legion::Mapping;
 
+//if (task.regions.size()==2)
+//std::cout << "task " << task.get_task_name()<< " partition  =" <<task.regions[1].partition<<std::endl;
+
     Processor::Kind target_kind = task.target_proc.kind();
     // Get the variant that we are going to use to map this task
     VariantInfo chosen = default_find_preferred_variant(
