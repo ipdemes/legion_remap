@@ -329,22 +329,14 @@ void remap_task(const Task *task, const std::vector<PhysicalRegion> &regions,
   auto rect_s = runtime->get_index_space_domain(
       ctx, task->regions[1].region.get_index_space());
 
-#if 0
-  std::cout << "IRINA DEBUG rect overlap" << rect_s << std::endl;
-  for (PointInRectIterator<2> pir2(rect_s); pir2(); pir2++) {
-      std::cout << acc_s[*pir2] << std::endl;
-    }
+   auto color = task->index_point.point_data[0];
 
-#endif
-
-#if 1 
   for (PieceIterator pir(regions[1], FID, true); pir(); pir++) {
-    std::cout << "IRINA DEBUG overlap rect" << *pir << std::endl;
+    std::cout << "IRINA DEBUG color = " <<color<< "overlap rect = " << *pir << std::endl;
     for (PointInRectIterator<2> pir2(*pir); pir2(); pir2++) {
-      std::cout << acc_s[*pir2] << std::endl;
+  //    std::cout << acc_s[*pir2] << std::endl;
     }
   }
-#endif
 
 } // remap task
 
