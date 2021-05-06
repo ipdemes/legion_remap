@@ -278,32 +278,32 @@ void fill_part_task(const Task *task,
   }
   case 3: {
     acc1[*pir] = {{0, 0}, {0, 65}};
-    acc3[*pir] = {{2, 0}, {2, 65}};
+    acc3[*pir] = {{2, 0}, {2, 45}};
     break;
   }
   case 4: {
     acc1[*pir] = {{0, 0}, {0, 65}};
     acc2[*pir] = {{1, 0}, {1, 65}};
-    acc3[*pir] = {{2, 0}, {2, 65}};
-    acc4[*pir] = {{3, 0}, {3, 65}};
+    acc3[*pir] = {{2, 0}, {2, 45}};
+    acc4[*pir] = {{3, 0}, {3, 15}};
     break;
   }
   case 5: {
     acc2[*pir] = {{1, 0}, {1, 65}};
-    acc4[*pir] = {{3, 0}, {3, 65}};
+    acc4[*pir] = {{3, 0}, {3, 15}};
     break;
   }
   case 6: {
-    acc3[*pir] = {{2, 0}, {2, 65}};
+    acc3[*pir] = {{2, 0}, {2, 45}};
     break;
   }
   case 7: {
-    acc3[*pir] = {{2, 0}, {2, 65}};
-    acc4[*pir] = {{3, 0}, {3, 65}};
+    acc3[*pir] = {{2, 0}, {2, 45}};
+    acc4[*pir] = {{3, 0}, {3, 15}};
     break;
   }
   case 8: {
-    acc4[*pir] = {{3, 0}, {3, 65}};
+    acc4[*pir] = {{3, 0}, {3, 15}};
     break;
   }
   }

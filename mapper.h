@@ -448,7 +448,9 @@ public:
         layout_constraints.add_constraint(
             Legion::MemoryConstraint(target_mem.kind()));
         // No specialization
-        layout_constraints.add_constraint(Legion::SpecializedConstraint());
+        size_t max_int = size_t(-1) /  sizeof(int);
+        layout_constraints.add_constraint(Legion::SpecializedConstraint(
+						LEGION_COMPACT_SPECIALIZE, 0, false, false, Domain(), max_int));
         // Have all the field for the instance available
         std::vector<Legion::FieldID> all_fields;
         for (auto fid : task.regions[indx].privilege_fields) {
